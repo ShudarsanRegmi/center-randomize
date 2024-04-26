@@ -27,6 +27,8 @@ if 'filter_type' not in st.session_state:
     st.session_state.filter_type = None
 if 'filter_value' not in st.session_state:
     st.session_state.filter_value = None
+if 'file_generated' not in st.session_state:
+    st.session_state.file_generated = False
 
 
 #Maps setup
@@ -84,10 +86,9 @@ def run_center_randomizer(schools_tsv, centers_tsv, prefs_tsv):
     cmd = f"python school_center.py {schools_tsv} {centers_tsv} {prefs_tsv}"
     subprocess.run(cmd, shell=True)
 
-
-def generate_pdf(results_data,filename,title):
-    st.toast("Generating Pdf..")
-    st.write("Generating pdf...")
+def generate_pdf(results_data, filename, title):
+    st.toast("Generating PDF..")
+    st.write(f"Generating {filename} PDF...")
 
     # Convert DataFrame to HTML with modern table styling
     html_content = results_data.to_html(index=False, classes=['modern-table'])
@@ -124,28 +125,28 @@ def generate_pdf(results_data,filename,title):
             .modern-table tr:hover {{
                 background-color: #eaeaea;
             }}
-           #main-header {{
-         display: flex;
-        align-items: center; /* Added align-items to center vertically */
-        justify-content: center;
-    }}
+            #main-header {{
+                display: flex;
+                align-items: center; /* Added align-items to center vertically */
+                justify-content: center;
+            }}
  
-    .header-text-container {{
-    text-align: center;
-    }}
+            .header-text-container {{
+                text-align: center;
+            }}
         </style>
     </head>
     <body>
-  <header id="main-header">
-       <div class="header-text-container">
-      <img src='https://avatars.githubusercontent.com/u/167545222?s=200&v=4' height= '90px'>
-      <h1 class="header-title">नेपाल सरकार</h1>
-      <h2 class="header-subtitle">शिक्षा, विज्ञान तथा प्रविधि मन्त्रालय</h2>
-      <p class="header-address">सिंहदरबार, काठमाडौं</p>
-      <h1>{title}</h1> 
-      <p>Randomly generated using center-randomize project by MOEST, Government of Nepal</p>
-    </div>
-  </header>
+        <header id="main-header">
+            <div class="header-text-container">
+                <img src='https://avatars.githubusercontent.com/u/167545222?s=200&v=4' height= '90px'>
+                <h1 class="header-title">नेपाल सरकार</h1>
+                <h2 class="header-subtitle">शिक्षा, विज्ञान तथा प्रविधि मन्त्रालय</h2>
+                <p class="header-address">सिंहदरबार, काठमाडौं</p>
+                <h1>{title}</h1> 
+                <p>Randomly generated using center-randomize project by MOEST, Government of Nepal</p>
+            </div>
+        </header>
         {html_content}
     </body>
     </html>
@@ -153,7 +154,7 @@ def generate_pdf(results_data,filename,title):
 
     # Generate the PDF from the HTML content
     pdfkit.from_string(html_template, f"{filename}.pdf", options={'encoding': 'utf-8'})
-    st.success(f"Successfully Downloaded {filename}.pdf!")
+    st.success(f"Successfully generated {filename}.pdf!")
 
 #Function to filter the data
 def filter_data(df, filter_type, filter_value):
@@ -167,6 +168,7 @@ def filter_data(df, filter_type, filter_value):
 # Run logic after the button is clicked
 if calculate:
     st.session_state.calculate_clicked = True
+    st.session_state.file_generated = False #setting to False in order to enable user to download file each time calculate is clicked
     
     def save_file_to_temp(file_obj):
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
@@ -241,9 +243,6 @@ if st.session_state.calculate_clicked and st.session_state.calculation_completed
         tab1.divider()
         tab1.subheader('All Data')
         tab1.dataframe(df_school_center)
-
-
-
     else:
         tab1.info("No calculated data available.", icon="ℹ️")
     
@@ -252,12 +251,43 @@ if st.session_state.calculate_clicked and st.session_state.calculation_completed
         tab2.dataframe(df_school_center_distance)
     else:
         tab2.error("School Center Distance file not found.")
+    
     # Download Button
-
     def download_handler():
         generate_pdf(df_school_center, "school_center", "School Center")
-        generate_pdf(df_school_center_distance,"school_center_distance","School Center Distance")
-    st.button("Download Results as PDF!", on_click=download_handler)
+        generate_pdf(df_school_center_distance, "school_center_distance", "School Center Distance")
+        # Update session state to indicate file generation is complete
+        st.session_state.file_generated = True
+
+    if not st.session_state.file_generated:
+        st.button("Generate PDF", type="primary", on_click=download_handler)
+
+    # Check if file generation is complete and display the download link
+    if st.session_state.file_generated:
+
+        # Get the current directory
+        current_directory = os.getcwd()
+        # Construct the full file path for each PDF
+        file_path_school_center = os.path.join(current_directory, "school_center.pdf")
+        file_path_school_center_distance = os.path.join(current_directory, "school_center_distance.pdf")
+
+        # Display a download link for each generated PDF file
+        with open(file_path_school_center, "rb") as f:
+            st.download_button(
+                label="Download School Center PDF",
+                data=f,
+                type="primary",
+                file_name="school_center.pdf",
+                mime="application/pdf"
+            )
+
+        with open(file_path_school_center_distance, "rb") as f:
+            st.download_button(
+                label="Download School Center Distance PDF",
+                data=f,
+                file_name="school_center_distance.pdf",
+                mime="application/pdf"
+            )
 
 elif st.session_state.calculate_clicked and not st.session_state.calculated_data:
     tab1.error("School Center data not found in session state.")
